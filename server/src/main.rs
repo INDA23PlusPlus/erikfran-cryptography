@@ -6,6 +6,8 @@ use std::io::prelude::*;
 use std::net::TcpStream;
 
 fn main() -> io::Result<()> {
+    fs::create_dir_all(".\\db")?;
+
     let listener = TcpListener::bind("127.0.0.1:5000")?;
 
     // accept connections and process them serially
@@ -27,8 +29,9 @@ fn main() -> io::Result<()> {
                 )
             },
             ClientToServer::Write { index, data } => {
+                print!("Writing to .\\db\\{}...", index);
                 fs::write(
-                    format!("db\\{}", index),
+                    format!(".\\db\\{}", index),
                     data
                 ).unwrap();
 

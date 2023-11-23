@@ -20,6 +20,18 @@ pub struct ServerToClientHandshake {
     pub features: Vec<Features>,
 } */
 
+pub enum Node {
+    Leaf {
+        index: Vec<u8>,
+        signature: [u8; 32],
+    },
+    Branch {
+        hash: [u8; 32],
+        left: Box<Node>,
+        right: Box<Node>,
+    },
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum ServerToClient {
     Read(Vec<u8>),
@@ -33,9 +45,9 @@ pub enum ServerToClient {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum ClientToServer {
-    Read(u64),
+    Read(Vec<u8>),
     Write {
-        index: u64,
+        index: Vec<u8>,
         data: Vec<u8>,
     },
     Status,
