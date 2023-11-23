@@ -1,17 +1,46 @@
-use std::{collections::HashMap, io::{self, Read}, fs::{File, self}, time::Duration, sync::Arc};
-use std::convert::Infallible;
-use std::net::SocketAddr;
+use std::{collections::HashMap, io::{self, Read}, fs::{File, self}, time::Duration, sync::Arc, net::TcpListener};
+use serde::{Serialize, Deserialize};
+use protocol::{self, ServerToClient, ClientToServer};
 
-use http_body_util::Full;
-use hyper::body::Bytes;
-use hyper::server::conn::http1;
-use hyper::service::service_fn;
-use hyper::{Request, Response};
-use hyper_util::rt::TokioIo;
-use tokio::net::TcpListener;
+use std::io::prelude::*;
+use std::net::TcpStream;
 
-fn main() {
-    let server = Server::new(|request, mut response| {
+fn main() -> io::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:5000")?;
+
+    // accept connections and process them serially
+    let (stream, _addr) = listener.accept()?;
+    let mut de = serde_json::Deserializer::from_reader(&stream);
+
+    loop {
+        //receive
+        let deserialized = ClientToServer::deserialize(&mut de)?;
+        println!("Received: {:?}", deserialized);
+
+        //send
+        serde_json::to_writer(&stream, &match deserialized {
+            ClientToServer::Read(index) => {
+                ServerToClient::Read (
+                    fs::read(
+                        format!("db\\{}", index)
+                    ).unwrap()
+                )
+            },
+            ClientToServer::Write { index, data } => {
+                fs::write(
+                    format!("db\\{}", index),
+                    data
+                ).unwrap();
+
+                ServerToClient::Write
+            },
+            ClientToServer::Status => {
+                ServerToClient::Status
+            },
+        }).unwrap();
+    }    
+
+    /* let server = Server::new(|request, mut response| {
             let mut path = request.uri().path().trim_start_matches("/").split("/");
 
             match path.next().expect("No path provided") {
@@ -42,5 +71,5 @@ fn main() {
             }
         });
 
-    server.listen("localhost", "9090");
+    server.listen("localhost", "9090"); */
 }
