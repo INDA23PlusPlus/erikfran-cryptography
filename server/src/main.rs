@@ -1,6 +1,6 @@
-use std::{collections::HashMap, io::{self, Read}, fs::{File, self}, time::Duration, sync::Arc, net::TcpListener};
+use std::{collections::HashMap, io::{self, Read}, fs::{File, self}, time::Duration, sync::Arc, net::TcpListener, vec};
 use serde::{Serialize, Deserialize};
-use protocol::{self, ServerToClientRead, ServerToClientWrite, ClientToServer, Node, sha_512_256};
+use protocol::{self, ServerToClientRead, ServerToClientWrite, ClientToServer, Node, sha_512_256, NodeType, hash};
 
 use std::io::prelude::*;
 use ring::aead::{NONCE_LEN, MAX_TAG_LEN};
@@ -103,27 +103,28 @@ fn add_to_merkle_tree(index: [u8; SHA512_256_OUTPUT_LEN], data: Vec<u8>, merkle_
         return merkle_tree;
     }
 
-    let new_root = Node::Branch {
-        hash: sha_512_256(&[&new_root.hash, [0u8; SHA512_256_OUTPUT_LEN]].concat()),
-        branch: Some(Branch {
-            left: Box::new(new_root),
-            right: Box::new
+    let new_root = Node {
+        hash: hash(&new_root.hash, &[0u8; SHA512_256_OUTPUT_LEN]),
+        node_type: Some(NodeType::Empty),
+    };
 
     add_to_merkle_tree(index, data, merkle_tree)
 }
 
 fn add_to_merkle_tree_walker(index: [u8; SHA512_256_OUTPUT_LEN], data: Vec<u8>, current_node: Node) -> Node {
-    match current_node {
-        Node::Leaf { index, hash } => {
-            if !hash.is_zero() { return current_node; }
+    match current_node.node_type {
+        NodeType::Leaf { index } => {
+            if !current_node.hash.is_zero() { return current_node; }
 
-            Node::Branch {
+            Node {
                 hash: sha_512_256(&[&data, index].concat()),
-                left: Box::new(current_node),
-                right: Box::new(Node::Leaf { signature: tag })
+                node_type: NodeType::Branch {
+                    left: Box::new(current_node),
+                    right: Box::new( { signature: tag })
+                }
             }
         },
-        Node::Branch { hash, left, right } => {
+        NodeType::Branch { hash, left, right } => {
             if !hash.is_zero() { 
                 let new_right = add_to_merkle_tree_walker(index, data, right);
             }
@@ -131,7 +132,7 @@ fn add_to_merkle_tree_walker(index: [u8; SHA512_256_OUTPUT_LEN], data: Vec<u8>, 
             Node::Branch {
                 hash: sha_512_256(&[&add_to_merkle_tree(index, data, *left), &add_to_merkle_tree(index, data, *right)].concat()),
                 left: Box::new(current_node),
-                right: Box::new(Node::Leaf { signature: tag })
+                right: Box::new(Node::Leaf { signature: tag }) 
             }
         },
     }

@@ -5,13 +5,24 @@ pub fn sha_512_256(data: &[u8]) -> [u8; ring::digest::SHA512_256_OUTPUT_LEN] {
     ring::digest::digest(&ring::digest::SHA512_256, data).as_ref().try_into().unwrap()
 }
 
+pub fn hash(data1: &[u8; 32], data2: &[u8; 32]) -> [u8; 32] {
+    sha_512_256(data1
+        .iter()
+        .chain(data2)
+        .map(|x| *x)
+        .collect::<Vec<u8>>()
+        .as_slice()
+    )
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Node {
     pub hash: [u8; ring::digest::SHA512_256_OUTPUT_LEN],
-    pub branch: Option<Type>}
+    pub node_type: NodeType,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum Type {
+pub enum NodeType {
     Leaf {
         index: [u8; ring::digest::SHA512_256_OUTPUT_LEN],
     },
