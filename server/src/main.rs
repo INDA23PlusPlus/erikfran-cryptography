@@ -1,11 +1,14 @@
 use std::{collections::HashMap, io::{self, Read}, fs::{File, self}, time::Duration, sync::Arc, net::TcpListener};
 use serde::{Serialize, Deserialize};
-use protocol::{self, ServerToClient, ClientToServer, Node};
+use protocol::{self, ServerToClientRead, ServerToClientWrite, ClientToServer, Node};
 
 use std::io::prelude::*;
+use ring::aead::{NONCE_LEN, MAX_TAG_LEN};
+use ring::digest::SHA512_256_OUTPUT_LEN;
 
 struct FileInfo {
-    tag: [u8; 16],
+    tag: [u8; MAX_TAG_LEN],
+    nonce: [u8; NONCE_LEN],
     data: Vec<u8>,
 }
 
@@ -28,25 +31,33 @@ fn main() -> io::Result<()> {
         println!("Received: {:?}", deserialized);
 
         //send
-        serde_json::to_writer(&stream, &match deserialized {
+        match deserialized {
             ClientToServer::Read(index) => {
                 let file = memory.get(&index).expect("File not found");
                 
-                ServerToClient::Read{
-                    index,
-                    tag: file.tag,
-                    data: file.data.clone(),
-                }
+                serde_json::to_writer(&stream,
+                    &ServerToClientRead{
+                        nonce: file.nonce,
+                        tag: file.tag,
+                        data: file.data.clone(),
+                        merkle_tree: Node::Leaf { index: index, signature: file.tag }
+                    }
+                ).expect("Failed to send read to server");
             },
-            ClientToServer::Write { index, tag, data } => {
+            ClientToServer::Write { index, nonce, tag, data } => {
                 memory.insert(index, FileInfo {
+                    nonce,
                     tag,
                     data,
                 });
 
-                ServerToClient::Write
+                serde_json::to_writer(&stream, 
+                    &ServerToClientWrite {
+                        merkle_tree: Node::Leaf { index: index, signature: tag }
+                    }
+                ).expect("Failed to send write to client");
             },
-        }).unwrap();
+        }
     }
 
     /* let server = Server::new(|request, mut response| {
@@ -84,5 +95,9 @@ fn main() -> io::Result<()> {
 }
 
 fn add_to_merkle_tree() {
+    todo!()
+}
+
+fn merkle_tree_for_file() {
     todo!()
 }
