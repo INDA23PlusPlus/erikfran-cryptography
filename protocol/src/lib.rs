@@ -1,54 +1,59 @@
 use serde::{Serialize, Deserialize};
+use ring;
 
-/* ///This is the first message that the client sends to the server just tells it what color it wants the server to play as.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct ClientToServerHandshake {
-    pub server_color: Color,
+pub fn sha_512_256(data: &[u8]) -> [u8; ring::digest::SHA512_256_OUTPUT_LEN] {
+    ring::digest::digest(&ring::digest::SHA512_256, data).as_ref().try_into().unwrap()
 }
-
-/**
-This is the first message that the server sends to the client after receiving the `ClientToServerHandshake`.
-Includes the start state of the game and what features the server supports.
-*/
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct ServerToClientHandshake {
-    ///The start state of the game. The board is row major and the first index is the rank and the second index is the file.
-    pub board: [[Piece; 8]; 8],
-    pub moves: Vec<Move>,
-    pub joever: Joever,
-    ///The features that the server supports. Completely optional to handle and the client can just ignore it if it wants to.
-    pub features: Vec<Features>,
-} */
 
 pub enum Node {
     Leaf {
-        index: Vec<u8>,
-        signature: [u8; 32],
+        index: [u8; ring::digest::SHA256_OUTPUT_LEN],
+        signature: [u8; ring::aead::MAX_TAG_LEN],
     },
     Branch {
-        hash: [u8; 32],
+        hash: [u8; ring::digest::SHA256_OUTPUT_LEN],
         left: Box<Node>,
         right: Box<Node>,
     },
 }
 
+/* impl Node {
+    // Calculate the merkle hash of a merkle tree
+    fn calculate_merkle_hash(&self) -> [u8; ring::digest::SHA256_OUTPUT_LEN] {
+        match self {
+            Node::Leaf{ index, signature } => {
+                [signature, signature].concat().try_into().unwrap()
+            },
+            Node::Branch{ hash, left, right } => {
+                calculate_merkle_hash(*left)
+                    .iter()
+                    .enumerate()
+                    .map(|(i, left)| left ^ calculate_merkle_hash(*right)[i])
+                    .collect::<Vec<u8>>()
+
+                sha_512_256(&hash.iter().map(|x| x.to_string()).collect::<String>())
+            },
+        }
+    }
+} */
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum ServerToClient {
-    Read(Vec<u8>),
+    Read{
+        index: [u8; ring::digest::SHA256_OUTPUT_LEN],
+        tag: [u8; ring::aead::MAX_TAG_LEN],
+        data: Vec<u8>,
+    },
     Write,//(u64),
     Error(String),
-    Status/* {
-        // hash: u64,
-        // memory_used: u64,
-    },*/
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum ClientToServer {
-    Read(Vec<u8>),
+    Read([u8; ring::digest::SHA256_OUTPUT_LEN]),
     Write {
-        index: Vec<u8>,
+        index: [u8; ring::digest::SHA256_OUTPUT_LEN],
+        tag: [u8; ring::aead::MAX_TAG_LEN],
         data: Vec<u8>,
     },
-    Status,
 }

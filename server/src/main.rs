@@ -1,12 +1,20 @@
 use std::{collections::HashMap, io::{self, Read}, fs::{File, self}, time::Duration, sync::Arc, net::TcpListener};
 use serde::{Serialize, Deserialize};
-use protocol::{self, ServerToClient, ClientToServer};
+use protocol::{self, ServerToClient, ClientToServer, Node};
 
 use std::io::prelude::*;
-use std::net::TcpStream;
+
+struct FileInfo {
+    tag: [u8; 16],
+    data: Vec<u8>,
+}
 
 fn main() -> io::Result<()> {
-    fs::create_dir_all(".\\db")?;
+    let mut merkle_tree: Node;
+
+    let mut memory: HashMap<[u8; 32], FileInfo> = HashMap::new();
+
+    //fs::create_dir_all(".\\db")?;
 
     let listener = TcpListener::bind("127.0.0.1:5000")?;
 
@@ -22,26 +30,24 @@ fn main() -> io::Result<()> {
         //send
         serde_json::to_writer(&stream, &match deserialized {
             ClientToServer::Read(index) => {
-                ServerToClient::Read (
-                    fs::read(
-                        format!("db\\{}", index)
-                    ).unwrap()
-                )
+                let file = memory.get(&index).expect("File not found");
+                
+                ServerToClient::Read{
+                    index,
+                    tag: file.tag,
+                    data: file.data.clone(),
+                }
             },
-            ClientToServer::Write { index, data } => {
-                print!("Writing to .\\db\\{}...", index);
-                fs::write(
-                    format!(".\\db\\{}", index),
-                    data
-                ).unwrap();
+            ClientToServer::Write { index, tag, data } => {
+                memory.insert(index, FileInfo {
+                    tag,
+                    data,
+                });
 
                 ServerToClient::Write
             },
-            ClientToServer::Status => {
-                ServerToClient::Status
-            },
         }).unwrap();
-    }    
+    }
 
     /* let server = Server::new(|request, mut response| {
             let mut path = request.uri().path().trim_start_matches("/").split("/");
@@ -75,4 +81,8 @@ fn main() -> io::Result<()> {
         });
 
     server.listen("localhost", "9090"); */
+}
+
+fn add_to_merkle_tree() {
+    todo!()
 }
