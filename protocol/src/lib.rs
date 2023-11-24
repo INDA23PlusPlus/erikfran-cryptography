@@ -6,16 +6,20 @@ pub fn sha_512_256(data: &[u8]) -> [u8; ring::digest::SHA512_256_OUTPUT_LEN] {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum Node {
+pub struct Node {
+    pub hash: [u8; ring::digest::SHA512_256_OUTPUT_LEN],
+    pub branch: Option<Type>}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Type {
     Leaf {
         index: [u8; ring::digest::SHA512_256_OUTPUT_LEN],
-        signature: [u8; ring::aead::MAX_TAG_LEN],
     },
     Branch {
-        hash: [u8; ring::digest::SHA512_256_OUTPUT_LEN],
         left: Box<Node>,
         right: Box<Node>,
     },
+    Empty,
 }
 
 /* impl Node {
